@@ -34,23 +34,13 @@ if (navToggle && navLinks) {
   navToggle.addEventListener('click', () => {
     navLinks.classList.toggle('open');
     navToggle.classList.toggle('open');
-    // Animate hamburger lines
     document.body.style.overflow = navLinks.classList.contains('open') ? 'hidden' : '';
   });
-  // Close on link click
   $$('.nav-links a').forEach(a => a.addEventListener('click', () => {
     navLinks.classList.remove('open');
     navToggle.classList.remove('open');
     document.body.style.overflow = '';
   }));
-  // Close on outside click
-  document.addEventListener('click', e => {
-    if (!navbar.contains(e.target) && navLinks.classList.contains('open')) {
-      navLinks.classList.remove('open');
-      navToggle.classList.remove('open');
-      document.body.style.overflow = '';
-    }
-  });
 }
 
 // ── SCROLL REVEAL ANIMATIONS
@@ -86,8 +76,45 @@ const counterObserver = new IntersectionObserver((entries) => {
     }
   });
 }, { threshold: 0.5 });
-
 $$('[data-count]').forEach(el => counterObserver.observe(el));
+
+// ── HERO SLIDER ──────────────────────────────────────────
+(function initSlider() {
+  const slider = $('#heroSlider');
+  if (!slider) return;
+
+  const slides = $$('.hero-slide', slider);
+  const dots   = $$('.slider-dot', slider);
+  const prev   = $('#sliderPrev');
+  const next   = $('#sliderNext');
+  let current  = 0;
+  let timer;
+
+  function showSlide(idx) {
+    slides.forEach(s => s.classList.remove('active'));
+    dots.forEach(d => d.classList.remove('active'));
+    current = (idx + slides.length) % slides.length;
+    slides[current].classList.add('active');
+    if (dots[current]) dots[current].classList.add('active');
+  }
+
+  function nextSlide() { showSlide(current + 1); }
+  function prevSlide() { showSlide(current - 1); }
+
+  function startAutoPlay() {
+    stopAutoPlay();
+    timer = setInterval(nextSlide, 5000);
+  }
+  function stopAutoPlay() { clearInterval(timer); }
+
+  if (next) next.addEventListener('click', () => { nextSlide(); startAutoPlay(); });
+  if (prev) prev.addEventListener('click', () => { prevSlide(); startAutoPlay(); });
+  dots.forEach((dot, i) => { dot.addEventListener('click', () => { showSlide(i); startAutoPlay(); }); });
+
+  slider.addEventListener('mouseenter', stopAutoPlay);
+  slider.addEventListener('mouseleave', startAutoPlay);
+  startAutoPlay();
+})();
 
 // ── SUPPORT MODAL ─────────────────────────────────────────
 const modalOverlay  = $('#supportModal');
@@ -100,9 +127,8 @@ function closeModal() { modalOverlay && modalOverlay.classList.remove('open'); d
 if (floatingBtn)   floatingBtn.addEventListener('click', openModal);
 if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModal);
 if (modalOverlay)  modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-// Modal tabs (Support Ticket | Sales Enquiry)
+// Modal tabs
 $$('.modal-tab').forEach(tab => {
   tab.addEventListener('click', function () {
     $$('.modal-tab').forEach(t => t.classList.remove('active'));
@@ -111,56 +137,43 @@ $$('.modal-tab').forEach(tab => {
     $$('.modal-form .field-group').forEach(fg => fg.classList.remove('visible'));
     const group = $(`#modal-${type}-fields`);
     if (group) group.classList.add('visible');
-    // Update WhatsApp message target
-    updateWhatsAppBtn(type);
   });
 });
 
-function updateWhatsAppBtn(type) {
-  const waBtn = $('#modalWhatsApp');
-  if (!waBtn) return;
-  const baseNumber = '918045729158';
-  const msg = type === 'support'
-    ? 'Hello Hi Beam Infotech! I need technical support. Please help me raise a support ticket.'
-    : 'Hello Hi Beam Infotech! I am interested in your products/services. Please assist with a sales enquiry.';
-  waBtn.href = `https://wa.me/${baseNumber}?text=${encodeURIComponent(msg)}`;
-}
-// Init WhatsApp link
-updateWhatsAppBtn('support');
+// ── VALIDATION & FORMS
+function validateEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
+function validatePhone(phone) { const clean = phone.replace(/\D/g, ''); return clean.length === 10; }
+function showError(input, message) { input.classList.add('error'); input.focus(); alert(message); }
+function clearErrors() { $$('input, textarea, select').forEach(el => el.classList.remove('error')); }
 
-// ── MODAL FORM SUBMIT
+// Modal Form
 const modalForm = $('#modalSupportForm');
 if (modalForm) {
   modalForm.addEventListener('submit', e => {
     e.preventDefault();
+    clearErrors();
+    const name = modalForm.querySelector('[name="modal_name"]');
+    const phone = modalForm.querySelector('[name="modal_phone"]');
+    const message = modalForm.querySelector('[name="modal_message"]');
+    
+    if (!name.value.trim()) return showError(name, 'Full name is required.');
+    if (!validatePhone(phone.value)) return showError(phone, 'Enter 10-digit mobile number.');
+    if (!message.value.trim()) return showError(message, 'Description is required.');
+
     const activeTab = $('.modal-tab.active');
     const type = activeTab ? activeTab.dataset.tab : 'support';
-    const name = modalForm.querySelector('[name="modal_name"]')?.value || '';
-    const phone = modalForm.querySelector('[name="modal_phone"]')?.value || '';
-    const message = modalForm.querySelector('[name="modal_message"]')?.value || '';
-    const email = modalForm.querySelector('[name="modal_email"]')?.value || '';
-
-    // Compose WhatsApp message with form data
     const baseNumber = '918045729158';
-    let waMsg;
-    if (type === 'support') {
-      const ticketType = modalForm.querySelector('[name="ticket_type"]')?.value || 'General';
-      waMsg = `*Support Ticket Request*\nName: ${name}\nPhone: ${phone}\nEmail: ${email}\nTicket Type: ${ticketType}\nIssue: ${message}`;
-    } else {
-      const product = modalForm.querySelector('[name="product_interest"]')?.value || 'General';
-      waMsg = `*Sales Enquiry*\nName: ${name}\nPhone: ${phone}\nEmail: ${email}\nInterested In: ${product}\nRequirement: ${message}`;
-    }
+    let waMsg = `*${type === 'support' ? 'Support Ticket' : 'Sales Enquiry'}*\nName: ${name.value}\nPhone: ${phone.value}\nMessage: ${message.value}`;
 
-    // Open WhatsApp with pre-filled message
     window.open(`https://wa.me/${baseNumber}?text=${encodeURIComponent(waMsg)}`, '_blank');
     closeModal();
     modalForm.reset();
   });
 }
 
-// ── MAIN CONTACT PAGE FORM ────────────────────────────────
+// Main Contact Form
 const contactForm = $('#mainContactForm');
-if (contactForm) {
+if (contactForm && $('#sales-fields')) {
   // Enquiry type toggle
   $$('.type-btn').forEach(btn => {
     btn.addEventListener('click', function () {
@@ -168,67 +181,43 @@ if (contactForm) {
       this.classList.add('active');
       const type = this.dataset.type;
       $$('.field-group').forEach(fg => fg.classList.remove('visible'));
-      const group = $(`#${type}-fields`);
-      if (group) group.classList.add('visible');
+      $(`#${type}-fields`)?.classList.add('visible');
     });
   });
-  // Trigger default
-  const defaultBtn = $('.type-btn[data-type="sales"]');
-  if (defaultBtn) defaultBtn.click();
 
   contactForm.addEventListener('submit', function (e) {
     e.preventDefault();
-    const formData = new FormData(contactForm);
-    const type     = $('.type-btn.active')?.dataset.type || 'sales';
-    const name     = formData.get('name') || '';
-    const email    = formData.get('email') || '';
-    const phone    = formData.get('phone') || '';
-    const org      = formData.get('organization') || '';
-    const message  = formData.get('message') || '';
+    clearErrors();
+    const name = $('#name');
+    const org = $('#organization');
+    const email = $('#email');
+    const phone = $('#phone');
+    const msg = $('#message');
 
-    // Build email mailto link as primary
-    const subject  = type === 'sales' ? 'Sales Enquiry — Hi Beam Infotech' : 'Support Ticket — Hi Beam Infotech';
-    let body;
+    if (!name.value.trim()) return showError(name, 'Name is required.');
+    if (!org.value.trim()) return showError(org, 'Organization is required.');
+    if (!validateEmail(email.value)) return showError(email, 'Valid email required.');
+    if (!validatePhone(phone.value)) return showError(phone, 'Enter 10-digit mobile.');
+    if (!msg.value.trim()) return showError(msg, 'Message is required.');
 
-    if (type === 'sales') {
-      const product = formData.get('product_interest') || '';
-      const budget  = formData.get('budget') || '';
-      body = `Name: ${name}\nOrganization: ${org}\nEmail: ${email}\nPhone: ${phone}\nProduct Interest: ${product}\nBudget: ${budget}\n\nRequirement:\n${message}`;
-    } else {
-      const ticketType = formData.get('ticket_type') || '';
-      const priority   = formData.get('priority') || '';
-      body = `Name: ${name}\nOrganization: ${org}\nEmail: ${email}\nPhone: ${phone}\nTicket Type: ${ticketType}\nPriority: ${priority}\n\nIssue Description:\n${message}`;
-    }
-
-    // Open mailto
-    window.location.href = `mailto:support@hibeaminfotech.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
-    // Show success message
-    const success = $('#formSuccess');
-    if (success) {
-      contactForm.style.display = 'none';
-      success.classList.add('visible');
-    }
+    const type = $('.type-btn.active')?.dataset.type || 'sales';
+    const body = `Name: ${name.value}\nOrg: ${org.value}\nPhone: ${phone.value}\n\n${msg.value}`;
+    window.location.href = `mailto:support@hibeaminfotech.com?subject=${type} Request&body=${encodeURIComponent(body)}`;
+    contactForm.style.display = 'none';
+    $('#formSuccess')?.classList.add('visible');
   });
 }
 
-// ── CLIENTS FILTER
+// Clients filter
 $$('.filter-btn').forEach(btn => {
   btn.addEventListener('click', function () {
     $$('.filter-btn').forEach(b => b.classList.remove('active'));
     this.classList.add('active');
     const filter = this.dataset.filter;
     $$('.client-card').forEach(card => {
-      if (filter === 'all' || card.dataset.category === filter) {
-        card.style.display = '';
-        setTimeout(() => card.style.opacity = '1', 10);
-      } else {
-        card.style.opacity = '0';
-        setTimeout(() => card.style.display = 'none', 300);
-      }
+      card.style.display = (filter === 'all' || card.dataset.category === filter) ? '' : 'none';
     });
   });
 });
 
 console.log('%c⚡ Hi Beam Infotech IT Solutions', 'color:#D71920;font-weight:900;font-size:16px;');
-console.log('%cDeveloped by TWIIS Innovations — https://twiis.in', 'color:#56A0D3;font-size:12px;');

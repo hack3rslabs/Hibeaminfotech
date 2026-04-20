@@ -1,0 +1,8 @@
+RewriteEngine On
+
+# Ensure the request is not for a directory or file that actually exists
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Add .html to the requested URI
+RewriteRule ^([^\.]+)$ $1.html [NC,L]
